@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Notation Converter</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 600px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+        .panel {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #4ecca3;
+        }
+        textarea {
+            width: 100%;
+            height: 250px;
+            padding: 15px;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            resize: vertical;
+            background: #0f0f1a;
+            color: #eee;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #4ecca3;
+        }
+        button {
+            width: 100%;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            background: #4ecca3;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 20px 0;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #3db892;
+        }
+        .output-box {
+            background: #0f0f1a;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .copy-btn {
+            background: #e94560;
+            margin-top: 10px;
+            padding: 10px 20px;
+        }
+        .copy-btn:hover {
+            background: #d63050;
+        }
+        .tips {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .tips h3 {
+            color: #4ecca3;
+            margin-top: 0;
+        }
+        .tips code {
+            background: #0f3460;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #4ecca3;
+        }
+        .tips ul {
+            padding-left: 20px;
+        }
+        .tips li {
+            margin: 8px 0;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chess Notation Converter</h1>
+    <p class="subtitle">Descriptive to Algebraic</p>
+
+    <div class="container">
+        <div class="panel">
+            <label>Descriptive Notation (input)</label>
+            <textarea id="input" placeholder="Enter moves like:
+1. P-K4 P-K4
+2. N-KB3 N-QB3
+3. B-QB4 B-QB4
+4. P-QN4 BxQN5"></textarea>
+        </div>
+        <div class="panel">
+            <label>Algebraic Notation (output)</label>
+            <div class="output-box" id="output">Converted moves will appear here...</div>
+            <button class="copy-btn" onclick="copyOutput()">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <button onclick="convert()">Convert</button>
+
+    <div class="tips">
+        <h3>Tips for best results</h3>
+        <ul>
+            <li>Use full square names: <code>QB4</code>, <code>KB3</code>, <code>QN5</code> (not just <code>B4</code>)</li>
+            <li>For captures, include target square: <code>BxQN5</code> rather than <code>BxP</code></li>
+            <li>Knight disambiguation: <code>KN-K2</code> (King's Knight) vs <code>QN-K2</code> (Queen's Knight)</li>
+            <li>Castling: <code>O-O</code> or <code>O-O-O</code></li>
+        </ul>
+    </div>
+
+    <script>
+        const PIECES = {
+            'K': 'K', 'Q': 'Q', 'R': 'R', 'B': 'B', 'N': 'N', 'Kt': 'N', 'P': ''
+        };
+
+        const EXTENDED_PIECES = {
+            'KN': ['N', 'g'], 'QN': ['N', 'b'],
+            'KKt': ['N', 'g'], 'QKt': ['N', 'b'],
+            'KB': ['B', 'f'], 'QB': ['B', 'c'],
+            'KR': ['R', 'h'], 'QR': ['R', 'a']
+        };
+
+        const FILES = {
+            'QR': 'a', 'QN': 'b', 'QKt': 'b', 'QB': 'c', 'Q': 'd',
+            'K': 'e', 'KB': 'f', 'KN': 'g', 'KKt': 'g', 'KR': 'h'
+        };
+
+        function parseDescriptiveSquare(squareStr, isWhite) {
+            squareStr = squareStr.trim();
+
+            const patterns = [
+                [/^(QR|QKt|QN|QB|KR|KKt|KN|KB)(\d)$/, m => [m[1], m[2]]],
+                [/^(Q|K)(\d)$/, m => [m[1], m[2]]],
+                [/^(R)(\d)$/, m => ['KR', m[2]]],
+                [/^(N)(\d)$/, m => ['KN', m[2]]],
+                [/^(B)(\d)$/, m => ['KB', m[2]]]
+            ];
+
+            let fileDesc = null, rankDesc = null;
+
+            for (const [pattern, extractor] of patterns) {
+                const match = squareStr.match(pattern);
+                if (match) {
+                    [fileDesc, rankDesc] = extractor(match);
+                    break;
+                }
+            }
+
+            if (!fileDesc) return null;
+
+            const fileAlg = FILES[fileDesc];
+            if (!fileAlg) return null;
+
+            const rankNum = parseInt(rankDesc);
+            const rankAlg = isWhite ? rankNum : (9 - rankNum);
+
+            return fileAlg + rankAlg;
+        }
+
+        function convertMove(moveStr, isWhite) {
+            moveStr = moveStr.trim();
+            const original = moveStr;
+
+            // Castling
+            if (['O-O', '0-0'].includes(moveStr.toUpperCase()) ||
+                moveStr.toUpperCase().includes('CASTLES KR') ||
+                moveStr.toUpperCase() === 'CASTLES K') {
+                return 'O-O';
+            }
+            if (['O-O-O', '0-0-0'].includes(moveStr.toUpperCase()) ||
+                moveStr.toUpperCase().includes('CASTLES QR') ||
+                moveStr.toUpperCase() === 'CASTLES Q') {
+                return 'O-O-O';
+            }
+
+            // Check/checkmate
+            let checkSuffix = '';
+            if (moveStr.endsWith('++') || moveStr.endsWith(' mate')) {
+                checkSuffix = '#';
+                moveStr = moveStr.replace(' mate', '').replace(/\+*#*$/, '');
+            } else if (moveStr.endsWith('+') || moveStr.endsWith('ch')) {
+                checkSuffix = '+';
+                moveStr = moveStr.replace(' ch', '').replace(/\+$/, '').replace(/ch$/, '');
+            }
+
+            // En passant
+            moveStr = moveStr.replace(/\s*e\.?p\.?/g, '');
+
+            // Promotion
+            let promotion = '';
+            const promoMatch = moveStr.match(/\(([QRBN])\)$|=([QRBN])$|\/([QRBN])$/);
+            if (promoMatch) {
+                promotion = '=' + (promoMatch[1] || promoMatch[2] || promoMatch[3]);
+                moveStr = moveStr.replace(/\([QRBN]\)$|=[QRBN]$|\/[QRBN]$/, '');
+            }
+
+            // Capture
+            const isCapture = moveStr.toLowerCase().includes('x');
+            moveStr = moveStr.replace(/[xX]/g, '-');
+
+            // Split
+            const parts = moveStr.split('-');
+            if (parts.length !== 2) {
+                return `${original}[?]`;
+            }
+
+            const piecePart = parts[0].trim();
+            const destPart = parts[1].trim();
+
+            let piece = '';
+            let disambig = '';
+
+            // Disambiguation like R(1) or N(Q)
+            const disambigMatch = piecePart.match(/^(K|Q|R|B|N|Kt|P)\((.+)\)$/);
+            if (disambigMatch) {
+                const pieceChar = disambigMatch[1];
+                const disambigHint = disambigMatch[2];
+                piece = PIECES[pieceChar] || pieceChar;
+
+                if (/^\d$/.test(disambigHint)) {
+                    disambig = isWhite ? disambigHint : String(9 - parseInt(disambigHint));
+                } else if (FILES[disambigHint]) {
+                    disambig = FILES[disambigHint];
+                }
+            } else if (EXTENDED_PIECES[piecePart]) {
+                [piece, disambig] = EXTENDED_PIECES[piecePart];
+            } else {
+                piece = PIECES[piecePart] || (piecePart.length === 1 ? piecePart : '');
+            }
+
+            // Parse destination
+            let destSquare = parseDescriptiveSquare(destPart, isWhite);
+
+            if (!destSquare) {
+                if (PIECES[destPart] || ['P', 'N', 'B', 'R', 'Q', 'Kt', 'NP', 'BP', 'RP', 'QP', 'KP'].includes(destPart)) {
+                    return `${piece}x?${checkSuffix}`;
+                }
+                return `${original}[?]`;
+            }
+
+            const captureSym = isCapture ? 'x' : '';
+
+            // Pawn captures need file
+            if (piece === '' && isCapture) {
+                const pawnFiles = {
+                    'QRP': 'a', 'QNP': 'b', 'QBP': 'c', 'QP': 'd',
+                    'KP': 'e', 'KBP': 'f', 'KNP': 'g', 'KRP': 'h', 'P': ''
+                };
+                piece = pawnFiles[piecePart] || '';
+            }
+
+            return piece + disambig + captureSym + destSquare + promotion + checkSuffix;
+        }
+
+        function convertGame(gameText) {
+            const lines = gameText.trim().split('\n');
+            const algebraicMoves = [];
+
+            for (let line of lines) {
+                line = line.trim();
+                if (!line || line.startsWith('#')) continue;
+
+                // Format: "1. P-K4 P-K4"
+                let match = line.match(/^(\d+)\.\s*([^\s]+)\s+([^\s]+)$/);
+                if (match) {
+                    const [, num, whiteMove, blackMove] = match;
+                    const whiteAlg = convertMove(whiteMove, true);
+                    const blackAlg = convertMove(blackMove, false);
+                    algebraicMoves.push(`${num}. ${whiteAlg} ${blackAlg}`);
+                    continue;
+                }
+
+                // Format: "1. P-K4"
+                match = line.match(/^(\d+)\.\s*([^\s]+)$/);
+                if (match) {
+                    const [, num, whiteMove] = match;
+                    algebraicMoves.push(`${num}. ${convertMove(whiteMove, true)}`);
+                    continue;
+                }
+
+                // Format: "1... P-K4"
+                match = line.match(/^(\d+)\.\.\.\s*([^\s]+)$/);
+                if (match) {
+                    const [, num, blackMove] = match;
+                    algebraicMoves.push(`${num}... ${convertMove(blackMove, false)}`);
+                    continue;
+                }
+
+                // Fallback: space separated
+                const moves = line.split(/[,\s]+/).filter(m => m && !/^\d+\.?$/.test(m));
+                for (let i = 0; i < moves.length; i++) {
+                    const isWhite = (i % 2 === 0);
+                    const alg = convertMove(moves[i], isWhite);
+                    if (isWhite) {
+                        algebraicMoves.push(`${algebraicMoves.length + 1}. ${alg}`);
+                    } else if (algebraicMoves.length > 0) {
+                        algebraicMoves[algebraicMoves.length - 1] += ` ${alg}`;
+                    }
+                }
+            }
+
+            return algebraicMoves;
+        }
+
+        function convert() {
+            const input = document.getElementById('input').value;
+            const result = convertGame(input);
+            document.getElementById('output').textContent = result.join(' ');
+        }
+
+        function copyOutput() {
+            const output = document.getElementById('output').textContent;
+            navigator.clipboard.writeText(output).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy to Clipboard', 2000);
+            });
+        }
+
+        // Auto-convert on input
+        document.getElementById('input').addEventListener('input', convert);
+    </script>
+</body>
+</html>
