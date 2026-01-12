@@ -272,8 +272,10 @@
                 }
             } else if (EXTENDED_PIECES[piecePart]) {
                 [piece, disambig] = EXTENDED_PIECES[piecePart];
+            } else if (piecePart in PIECES) {
+                piece = PIECES[piecePart];
             } else {
-                piece = PIECES[piecePart] || (piecePart.length === 1 ? piecePart : '');
+                piece = piecePart.length === 1 ? piecePart : '';
             }
 
             // Parse destination
