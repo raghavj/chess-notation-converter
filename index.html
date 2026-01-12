@@ -252,8 +252,8 @@
                 return `${original}[?]`;
             }
 
-            const piecePart = parts[0].trim();
-            const destPart = parts[1].trim();
+            const piecePart = parts[0].trim().toUpperCase();
+            const destPart = parts[1].trim().toUpperCase();
 
             let piece = '';
             let disambig = '';
